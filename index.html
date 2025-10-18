@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>知识巩固器</title>
+  <!-- Tailwind CSS v3 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome -->
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#3b82f6', // 知识蓝
+            secondary: '#f97316', // 活力橙
+            success: '#10b981',
+            error: '#ef4444',
+          }
+        }
+      }
+    }
+  </script>
+  
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .option-card {
+        @apply bg-white border border-gray-200 rounded-xl p-4 cursor-pointer transition-all duration-300 hover:border-primary/50 hover:bg-primary/5;
+      }
+      .option-card-selected {
+        @apply border-primary bg-primary/10;
+      }
+      .option-card-correct {
+        @apply border-success bg-success/10;
+      }
+      .option-card-incorrect {
+        @apply border-error bg-error/10;
+      }
+      .bg-transition {
+        @apply transition-all duration-1000 ease-linear;
+      }
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen font-sans">
+  <div class="container mx-auto px-4 py-8 max-w-4xl">
+    <!-- 标题区域 -->
+    <header class="text-center mb-10">
+      <h1 class="text-4xl font-bold text-gray-800 mb-2">知识巩固器</h1>
+      <p class="text-gray-600">通过互动问答，巩固你的知识</p>
+    </header>
+
+    <!-- 主内容区域 -->
+    <main class="bg-white rounded-2xl shadow-xl p-6 md:p-8 mb-8 font-sans text-base">
+      <!-- 文件上传区域 -->
+      <section id="upload-section" class="text-center py-10">
+        <div class="flex flex-col items-center justify-center">
+          <div class="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6">
+            <i class="fa fa-file-text-o text-primary text-4xl"></i>
+          </div>
+          <h2 class="text-2xl font-semibold text-gray-800 mb-4">上传题库文件</h2>
+          <p class="text-gray-600 mb-6 max-w-md">请上传JSON格式的题库文件，每题包含问题、选项和正确答案索引</p>
+          
+          <div class="flex flex-col md:flex-row gap-4">
+            <label for="file-input" class="bg-primary text-white px-6 py-3 rounded-lg font-medium cursor-pointer transition-all duration-300 hover:bg-primary/90">
+              <i class="fa fa-upload mr-2"></i>选择文件
+              <input id="file-input" type="file" accept=".json" class="hidden">
+            </label>
+            <button id="sample-btn" class="bg-secondary text-white px-6 py-3 rounded-lg font-medium transition-all duration-300 hover:bg-secondary/90">
+              <i class="fa fa-magic mr-2"></i>使用示例题库
+            </button>
+          </div>
+          
+          <div id="file-info" class="mt-6 text-sm text-gray-500 hidden">
+            <p><i class="fa fa-check-circle text-success mr-1"></i>已选择文件: <span id="file-name"></span></p>
+            <p id="question-count-info" class="mt-1"><i class="fa fa-list-alt text-primary mr-1"></i>题库包含 <span id="question-count"></span> 道题目</p>
+          </div>
+          
+          <div id="file-error" class="mt-6 text-sm text-error hidden">
+            <p><i class="fa fa-exclamation-circle mr-1"></i><span id="error-message"></span></p>
+          </div>
+          
+          <!-- 答题设置区域 -->
+          <div id="quiz-settings" class="mt-8 p-6 bg-gray-50 rounded-xl w-full max-w-md hidden">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">答题设置</h3>
+            
+            <div class="mb-4">
+              <label for="question-number" class="block text-sm font-medium text-gray-700 mb-1">选择答题数量</label>
+              <select id="question-number" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                <!-- 选项将通过JavaScript动态生成 -->
+              </select>
+            </div>
+            
+            <div class="mb-4">
+              <label for="feedback-time" class="block text-sm font-medium text-gray-700 mb-1">反馈显示时间 (秒)</label>
+              <input type="number" id="feedback-time" min="1" max="10" value="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+            </div>
+            
+            <button id="start-quiz-btn" class="bg-primary text-white px-6 py-3 rounded-lg font-medium w-full mt-2 transition-all duration-300 hover:bg-primary/90">
+              <i class="fa fa-play mr-2"></i>开始测验
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 问答区域 -->
+      <section id="quiz-section" class="hidden">
+        <!-- 顶部工具栏 -->
+        <div class="flex justify-between items-center mb-6">
+          <div class="flex items-center space-x-4">
+            <div class="text-sm text-gray-600">
+              问题 <span id="current-question">1</span>/<span id="total-questions">0</span>
+            </div>
+            <div class="text-sm font-medium">
+              得分: <span id="score">0</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 问题卡片（背景渐变将应用于此区域） -->
+        <div id="question-card" class="bg-white rounded-xl border border-gray-200 p-6 mb-6 shadow-sm bg-transition">
+          <h2 id="question-text" class="text-xl font-semibold text-gray-800 mb-4"></h2>
+          
+          <!-- 选项列表 -->
+          <div id="options-container" class="space-y-3">
+            <!-- 选项将通过JavaScript动态生成 -->
+          </div>
+        </div>
+        
+        <!-- 反馈区域 -->
+        <div id="feedback-container" class="hidden mb-6 rounded-xl p-6">
+          <!-- 反馈内容将通过JavaScript动态生成 -->
+        </div>
+      </section>
+
+      <!-- 结果区域 -->
+      <section id="result-section" class="hidden text-center py-10">
+        <div class="w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-6">
+          <i class="fa fa-trophy text-primary text-4xl"></i>
+        </div>
+        <h2 class="text-2xl font-semibold text-gray-800 mb-2">测验完成！</h2>
+        <p class="text-xl text-gray-600 mb-2">你的得分: <span id="final-score" class="font-bold text-primary"></span>/<span id="final-total"></span></p>
+        <p id="result-message" class="text-gray-600 mb-8"></p>
+        
+        <div class="flex flex-col md:flex-row gap-4 justify-center">
+          <button id="restart-btn" class="bg-primary text-white px-6 py-3 rounded-lg font-medium transition-all duration-300 hover:bg-primary/90">
+            <i class="fa fa-refresh mr-2"></i>重新开始
+          </button>
+          <button id="new-file-btn" class="bg-secondary text-white px-6 py-3 rounded-lg font-medium transition-all duration-300 hover:bg-secondary/90">
+            <i class="fa fa-file-text-o mr-2"></i>上传新题库
+          </button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    // 反馈语句库
+    const feedbackMessages = {
+      correct: [
+        "太棒了！回答正确！",
+        "非常好！你掌握了这个知识点。",
+        "正确！继续保持这种状态。"
+      ],
+      incorrect: [
+        "没关系，继续努力！",
+        "别灰心，下次一定会更好。",
+        "虽然错了，但你已经很接近了。"
+      ]
+    };
+
+    // 示例题库
+    const sampleQuestions = [
+      {
+        "question": "desert 的中文意思是？",
+        "options": ["沙漠", "甜点", "抛弃", "沙漠化"],
+        "correct_answer_index": 0
+      },
+      {
+        "question": "下列哪个是JavaScript的框架？",
+        "options": ["React", "Java", "Python", "C++"],
+        "correct_answer_index": 0
+      },
+      {
+        "question": "HTML的全称是什么？",
+        "options": ["HyperText Markup Language", "HighText Markup Language", "HyperText Making Language", "HighText Making Language"],
+        "correct_answer_index": 0
+      },
+      {
+        "question": "CSS的主要作用是？",
+        "options": ["处理数据", "样式设计", "逻辑编程", "数据库操作"],
+        "correct_answer_index": 1
+      },
+      {
+        "question": "HTTP协议的默认端口是？",
+        "options": ["80", "8080", "443", "21"],
+        "correct_answer_index": 0
+      }
+    ];
+
+    // 全局变量
+    let questions = [];
+    let currentQuestionIndex = 0;
+    let score = 0;
+    let answeredQuestions = [];
+    let selectedOptions = [];
+    let feedbackTime = 3; // 默认反馈时间（秒）
+    let originalQuestions = []; // 存储原始题库
+    let questionCard; // 问题卡片DOM元素（用于背景渐变）
+
+    // DOM元素
+    const uploadSection = document.getElementById('upload-section');
+    const quizSection = document.getElementById('quiz-section');
+    const resultSection = document.getElementById('result-section');
+    const fileInput = document.getElementById('file-input');
+    const sampleBtn = document.getElementById('sample-btn');
+    const fileInfo = document.getElementById('file-info');
+    const fileName = document.getElementById('file-name');
+    const questionCountInfo = document.getElementById('question-count-info');
+    const questionCount = document.getElementById('question-count');
+    const fileError = document.getElementById('file-error');
+    const errorMessage = document.getElementById('error-message');
+    const quizSettings = document.getElementById('quiz-settings');
+    const questionNumber = document.getElementById('question-number');
+    const feedbackTimeInput = document.getElementById('feedback-time');
+    const startQuizBtn = document.getElementById('start-quiz-btn');
+    const questionText = document.getElementById('question-text');
+    const optionsContainer = document.getElementById('options-container');
+    const feedbackContainer = document.getElementById('feedback-container');
+    const currentQuestionSpan = document.getElementById('current-question');
+    const totalQuestionsSpan = document.getElementById('total-questions');
+    const scoreSpan = document.getElementById('score');
+    const finalScoreSpan = document.getElementById('final-score');
+    const finalTotalSpan = document.getElementById('final-total');
+    const resultMessageSpan = document.getElementById('result-message');
+    const restartBtn = document.getElementById('restart-btn');
+    const newFileBtn = document.getElementById('new-file-btn');
+
+    // 初始化
+    function init() {
+      console.log('初始化应用...');
+      
+      // 获取问题卡片元素
+      questionCard = document.getElementById('question-card');
+      
+      // 文件上传事件
+      fileInput.addEventListener('change', handleFileUpload);
+      
+      // 示例题库按钮
+      sampleBtn.addEventListener('click', loadSampleQuestions);
+      
+      // 开始测验按钮
+      startQuizBtn.addEventListener('click', startQuiz);
+      
+      // 结果页面按钮
+      restartBtn.addEventListener('click', restartQuiz);
+      newFileBtn.addEventListener('click', loadNewFile);
+    }
+
+    // 处理文件上传
+    function handleFileUpload(event) {
+      console.log('处理文件上传...');
+      const file = event.target.files[0];
+      if (!file) {
+        console.log('未选择文件');
+        return;
+      }
+      
+      // 隐藏之前的信息和错误
+      fileInfo.classList.add('hidden');
+      fileError.classList.add('hidden');
+      quizSettings.classList.add('hidden');
+      
+      // 检查文件类型
+      if (file.type !== 'application/json' && !file.name.endsWith('.json')) {
+        showError('请上传JSON格式的文件');
+        console.error('文件类型错误: ' + file.type);
+        return;
+      }
+      
+      // 显示文件信息
+      fileName.textContent = file.name;
+      fileInfo.classList.remove('hidden');
+      
+      // 读取文件内容
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          console.log('文件读取完成，开始解析JSON');
+          const jsonData = JSON.parse(e.target.result);
+          validateQuestions(jsonData);
+          
+          // 存储原始题库
+          originalQuestions = jsonData;
+          
+          // 显示题目数量
+          questionCount.textContent = originalQuestions.length;
+          questionCountInfo.classList.remove('hidden');
+          
+          // 生成答题数量选项
+          generateQuestionNumberOptions(originalQuestions.length);
+          
+          // 显示设置区域
+          quizSettings.classList.remove('hidden');
+          console.log('文件验证成功，已加载', originalQuestions.length, '道题目');
+          
+        } catch (error) {
+          console.error('文件解析错误:', error);
+          showError('JSON文件格式错误: ' + error.message);
+        }
+      };
+      
+      reader.onerror = function() {
+        console.error('文件读取错误');
+        showError('文件读取错误，请尝试其他文件');
+      };
+      
+      reader.readAsText(file);
+    }
+
+    // 显示错误信息
+    function showError(message) {
+      errorMessage.textContent = message;
+      fileError.classList.remove('hidden');
+      quizSettings.classList.add('hidden');
+    }
+
+    // 加载示例题库
+    function loadSampleQuestions() {
+      console.log('加载示例题库...');
+      
+      try {
+        // 隐藏之前的信息和错误
+        fileInfo.classList.remove('hidden');
+        fileError.classList.add('hidden');
+        
+        // 存储原始题库
+        originalQuestions = sampleQuestions;
+        
+        // 显示文件信息
+        fileName.textContent = '示例题库.json';
+        
+        // 显示题目数量
+        questionCount.textContent = originalQuestions.length;
+        questionCountInfo.classList.remove('hidden');
+        
+        // 生成答题数量选项
+        generateQuestionNumberOptions(originalQuestions.length);
+        
+        // 显示设置区域
+        quizSettings.classList.remove('hidden');
+        
+        console.log('示例题库加载成功，共', originalQuestions.length, '道题目');
+      } catch (error) {
+        console.error('加载示例题库失败:', error);
+        showError('加载示例题库失败: ' + error.message);
+      }
+    }
+
+    // 验证题库格式
+    function validateQuestions(questionsArray) {
+      console.log('开始验证题库格式...');
+      
+      if (!Array.isArray(questionsArray)) {
+        throw new Error('题库应该是一个数组');
+      }
+      
+      if (questionsArray.length === 0) {
+        throw new Error('题库不能为空');
+      }
+      
+      questionsArray.forEach((question, index) => {
+        if (typeof question !== 'object' || question === null) {
+          throw new Error(`第${index + 1}题不是一个对象`);
+        }
+        
+        if (typeof question.question !== 'string' || question.question.trim() === '') {
+          throw new Error(`第${index + 1}题的question字段无效`);
+        }
+        
+        if (!Array.isArray(question.options) || question.options.length < 2) {
+          throw new Error(`第${index + 1}题的options字段应该包含至少2个选项`);
+        }
+        
+        if (typeof question.correct_answer_index !== 'number' || 
+            question.correct_answer_index < 0 || 
+            question.correct_answer_index >= question.options.length) {
+          throw new Error(`第${index + 1}题的correct_answer_index字段无效`);
+        }
+      });
+      
+      console.log('题库格式验证通过，共', questionsArray.length, '道题目');
+    }
+
+    // 生成答题数量选项
+    function generateQuestionNumberOptions(totalQuestions) {
+      console.log('生成答题数量选项，总题目数:', totalQuestions);
+      questionNumber.innerHTML = '';
+      
+      // 添加"全部"选项
+      const allOption = document.createElement('option');
+      allOption.value = totalQuestions;
+      allOption.textContent = `全部 (${totalQuestions}题)`;
+      questionNumber.appendChild(allOption);
+      
+      // 添加其他选项
+      const options = [5, 10, 15, 20, 25];
+      options.forEach(option => {
+        if (option < totalQuestions) {
+          const optionElement = document.createElement('option');
+          optionElement.value = option;
+          optionElement.textContent = `${option}题`;
+          questionNumber.appendChild(optionElement);
+        }
+      });
+    }
+
+    // 开始测验
+    function startQuiz() {
+      console.log('开始测验...');
+      
+      try {
+        // 获取设置值
+        const quizSize = parseInt(questionNumber.value);
+        feedbackTime = parseInt(feedbackTimeInput.value);
+        
+        console.log('测验设置:', {
+          quizSize: quizSize,
+          feedbackTime: feedbackTime
+        });
+        
+        // 从原始题库中随机选择题目
+        questions = getRandomQuestions(originalQuestions, quizSize);
+        console.log('已选择', questions.length, '道题目');
+        
+        if (questions.length === 0) {
+          throw new Error('没有选择到任何题目');
+        }
+        
+        // 重置状态
+        currentQuestionIndex = 0;
+        score = 0;
+        answeredQuestions = new Array(questions.length).fill(false);
+        selectedOptions = new Array(questions.length).fill(-1);
+        
+        // 更新UI
+        uploadSection.classList.add('hidden');
+        quizSection.classList.remove('hidden');
+        resultSection.classList.add('hidden');
+        
+        // 更新问题计数
+        totalQuestionsSpan.textContent = questions.length;
+        currentQuestionSpan.textContent = currentQuestionIndex + 1;
+        scoreSpan.textContent = score;
+        
+        // 显示第一个问题
+        showQuestion(currentQuestionIndex);
+        
+        console.log('测验开始成功！');
+      } catch (error) {
+        console.error('开始测验失败:', error);
+        alert('开始测验失败: ' + error.message);
+      }
+    }
+
+    // 从题库中随机选择指定数量的题目
+    function getRandomQuestions(allQuestions, count) {
+      console.log(`从 ${allQuestions.length} 道题目中随机选择 ${count} 道...`);
+      
+      // 创建题库副本
+      const questionsCopy = [...allQuestions];
+      const selectedQuestions = [];
+      
+      // 随机选择题目
+      for (let i = 0; i < count && questionsCopy.length > 0; i++) {
+        const randomIndex = Math.floor(Math.random() * questionsCopy.length);
+        selectedQuestions.push(questionsCopy.splice(randomIndex, 1)[0]);
+      }
+      
+      console.log(`成功选择了 ${selectedQuestions.length} 道题目`);
+      return selectedQuestions;
+    }
+
+    // 显示当前问题
+    function showQuestion(index) {
+      console.log(`显示第 ${index + 1} 题`);
+      
+      try {
+        // 重置问题卡片背景
+        resetQuestionCardBackground();
+        
+        const question = questions[index];
+        questionText.textContent = question.question;
+        optionsContainer.innerHTML = '';
+        feedbackContainer.classList.add('hidden');
+        
+        // 创建选项
+        question.options.forEach((option, i) => {
+          const optionCard = document.createElement('div');
+          optionCard.className = 'option-card';
+          optionCard.dataset.index = i;
+          
+          // 如果这个问题已经回答过，显示之前的选择和正确答案
+          if (answeredQuestions[index]) {
+            if (i === question.correct_answer_index) {
+              optionCard.classList.add('option-card-correct');
+            } else if (selectedOptions[index] === i) {
+              optionCard.classList.add('option-card-incorrect');
+            }
+            optionCard.classList.add('cursor-not-allowed');
+          } else {
+            optionCard.addEventListener('click', () => selectOption(i));
+          }
+          
+          optionCard.innerHTML = `
+            <div class="flex items-center">
+              <div class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center mr-3 font-medium">
+                ${String.fromCharCode(65 + i)}
+              </div>
+              <div>${option}</div>
+            </div>
+          `;
+          
+          optionsContainer.appendChild(optionCard);
+        });
+        
+        console.log('问题显示成功');
+      } catch (error) {
+        console.error('显示问题失败:', error);
+        alert('显示问题失败: ' + error.message);
+      }
+    }
+
+    // 重置问题卡片背景
+    function resetQuestionCardBackground() {
+      questionCard.style.backgroundColor = 'white';
+      questionCard.style.borderColor = '#e5e7eb'; // 默认边框色
+    }
+
+    // 选择选项
+    function selectOption(optionIndex) {
+      console.log('选择了选项:', optionIndex);
+      
+      try {
+        const question = questions[currentQuestionIndex];
+        const correctIndex = question.correct_answer_index;
+        const isCorrect = optionIndex === correctIndex;
+        
+        // 记录用户的选择
+        selectedOptions[currentQuestionIndex] = optionIndex;
+        answeredQuestions[currentQuestionIndex] = true;
+        
+        // 更新分数
+        if (isCorrect) {
+          score++;
+          scoreSpan.textContent = score;
+        }
+        
+        // 显示正确/错误状态
+        const optionCards = optionsContainer.querySelectorAll('.option-card');
+        optionCards.forEach((card, i) => {
+          card.classList.remove('cursor-pointer');
+          card.classList.add('cursor-not-allowed');
+          
+          if (i === correctIndex) {
+            card.classList.add('option-card-correct');
+          } else if (i === optionIndex) {
+            card.classList.add('option-card-incorrect');
+          }
+        });
+        
+        // 显示反馈
+        showFeedback(isCorrect, question.options[correctIndex]);
+        
+        // 启动背景渐变倒计时
+        startBackgroundGradientCountdown();
+        
+      } catch (error) {
+        console.error('选择选项失败:', error);
+        alert('选择选项失败: ' + error.message);
+      }
+    }
+
+    // 启动背景渐变倒计时
+    function startBackgroundGradientCountdown() {
+      // 根据反馈时间计算每步的间隔时间（毫秒）
+      const totalSteps = feedbackTime * 10; // 每秒10步，使过渡更平滑
+      const stepInterval = 100; // 每100ms更新一次
+      let currentStep = 0;
+      
+      // 设置初始背景色（根据反馈类型）
+      const isCorrect = selectedOptions[currentQuestionIndex] === questions[currentQuestionIndex].correct_answer_index;
+      const startColor = isCorrect ? 
+        { r: 240, g: 253, b: 244 } : // 成功浅色
+        { r: 254, g: 242, b: 242 }; // 错误浅色
+      
+      // 目标背景色（白色）
+      const endColor = { r: 255, g: 255, b: 255 };
+      
+      // 计算每步的颜色变化量
+      const colorStep = {
+        r: (endColor.r - startColor.r) / totalSteps,
+        g: (endColor.g - startColor.g) / totalSteps,
+        b: (endColor.b - startColor.b) / totalSteps
+      };
+      
+      // 设置初始背景色
+      setBackgroundColor(startColor);
+      
+      // 启动渐变定时器
+      const gradientInterval = setInterval(() => {
+        currentStep++;
+        
+        // 计算当前颜色
+        const currentColor = {
+          r: Math.round(startColor.r + colorStep.r * currentStep),
+          g: Math.round(startColor.g + colorStep.g * currentStep),
+          b: Math.round(startColor.b + colorStep.b * currentStep)
+        };
+        
+        // 设置当前背景色
+        setBackgroundColor(currentColor);
+        
+        // 倒计时结束
+        if (currentStep >= totalSteps) {
+          clearInterval(gradientInterval);
+          
+          if (currentQuestionIndex < questions.length - 1) {
+            goToNextQuestion();
+          } else {
+            showResult();
+          }
+        }
+      }, stepInterval);
+    }
+
+    // 设置背景颜色
+    function setBackgroundColor(color) {
+      questionCard.style.backgroundColor = `rgb(${color.r}, ${color.g}, ${color.b})`;
+      
+      // 随背景色调整边框色，增强视觉效果
+      const borderFactor = 0.8; // 边框色比背景色深20%
+      const borderColor = {
+        r: Math.round(color.r * borderFactor),
+        g: Math.round(color.g * borderFactor),
+        b: Math.round(color.b * borderFactor)
+      };
+      
+      questionCard.style.borderColor = `rgb(${borderColor.r}, ${borderColor.g}, ${borderColor.b})`;
+    }
+
+    // 显示反馈
+    function showFeedback(isCorrect, correctAnswer) {
+      feedbackContainer.classList.remove('hidden');
+      
+      if (isCorrect) {
+        // 随机选择一个正确的反馈
+        const message = feedbackMessages.correct[Math.floor(Math.random() * feedbackMessages.correct.length)];
+        feedbackContainer.className = 'bg-success/10 border border-success/30 text-success rounded-xl p-6 mb-6';
+        feedbackContainer.innerHTML = `
+          <div class="flex items-start">
+            <div class="text-2xl mr-3">
+              <i class="fa fa-check-circle"></i>
+            </div>
+            <div>
+              <h3 class="font-semibold text-lg mb-1">回答正确！</h3>
+              <p>${message}</p>
+            </div>
+          </div>
+        `;
+      } else {
+        // 随机选择一个错误的反馈
+        const message = feedbackMessages.incorrect[Math.floor(Math.random() * feedbackMessages.incorrect.length)];
+        feedbackContainer.className = 'bg-error/10 border border-error/30 text-error rounded-xl p-6 mb-6';
+        feedbackContainer.innerHTML = `
+          <div class="flex items-start">
+            <div class="text-2xl mr-3">
+              <i class="fa fa-times-circle"></i>
+            </div>
+            <div>
+              <h3 class="font-semibold text-lg mb-1">回答错误</h3>
+              <p class="mb-2">正确答案是: <span class="font-medium">${correctAnswer}</span></p>
+              <p>${message}</p>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    // 下一题
+    function goToNextQuestion() {
+      console.log('执行goToNextQuestion函数');
+      
+      try {
+        if (currentQuestionIndex < questions.length - 1) {
+          currentQuestionIndex++;
+          console.log('跳转到第', currentQuestionIndex + 1, '题');
+          currentQuestionSpan.textContent = currentQuestionIndex + 1;
+          showQuestion(currentQuestionIndex);
+        } else {
+          console.log('已到达最后一题，显示结果页面');
+          showResult();
+        }
+      } catch (error) {
+        console.error('跳转到下一题失败:', error);
+        alert('跳转到下一题失败: ' + error.message);
+      }
+    }
+
+    // 显示结果页面
+    function showResult() {
+      console.log('显示结果页面');
+      
+      try {
+        quizSection.classList.add('hidden');
+        resultSection.classList.remove('hidden');
+        
+        // 更新结果信息
+        finalScoreSpan.textContent = score;
+        finalTotalSpan.textContent = questions.length;
+        
+        // 计算得分百分比
+        const percentage = (score / questions.length) * 100;
+        
+        // 根据得分显示不同的消息
+        let resultMessage = '';
+        if (percentage >= 90) {
+          resultMessage = '太棒了！你几乎掌握了所有知识点！';
+        } else if (percentage >= 70) {
+          resultMessage = '很好！你对大部分知识点都有很好的掌握。';
+        } else if (percentage >= 50) {
+          resultMessage = '不错的尝试！继续努力，你会做得更好。';
+        } else {
+          resultMessage = '别灰心，多练习几次，你会有很大进步的！';
+        }
+        
+        resultMessageSpan.textContent = resultMessage;
+        
+        console.log('结果页面显示成功');
+      } catch (error) {
+        console.error('显示结果页面失败:', error);
+        alert('显示结果页面失败: ' + error.message);
+      }
+    }
+
+    // 重新开始测验
+    function restartQuiz() {
+      console.log('重新开始测验');
+      
+      try {
+        // 显示设置区域
+        uploadSection.classList.remove('hidden');
+        quizSection.classList.add('hidden');
+        resultSection.classList.add('hidden');
+        
+        // 重置设置
+        feedbackTimeInput.value = 3;
+        
+        console.log('测验已重置');
+      } catch (error) {
+        console.error('重置测验失败:', error);
+        alert('重置测验失败: ' + error.message);
+      }
+    }
+
+    // 加载新文件
+    function loadNewFile() {
+      console.log('加载新文件');
+      
+      try {
+        // 重置文件输入
+        fileInput.value = '';
+        
+        // 更新UI
+        resultSection.classList.add('hidden');
+        uploadSection.classList.remove('hidden');
+        fileInfo.classList.add('hidden');
+        fileError.classList.add('hidden');
+        quizSettings.classList.add('hidden');
+        
+        // 重置变量
+        questions = [];
+        currentQuestionIndex = 0;
+        score = 0;
+        answeredQuestions = [];
+        selectedOptions = [];
+        
+        console.log('已准备好加载新文件');
+      } catch (error) {
+        console.error('加载新文件失败:', error);
+        alert('加载新文件失败: ' + error.message);
+      }
+    }
+
+    // 页面加载完成后初始化
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
+    
